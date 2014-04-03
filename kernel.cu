@@ -1,6 +1,6 @@
+#include "socialForce.cuh"
+#include "socialForceHeader.cuh"
 #include "gsimcore.cuh"
-#include "boidHeader.cuh"
-#include "boid.cuh"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -43,15 +43,16 @@ void initOnDevice(float *x_pos, float *y_pos){
 	getLastCudaError("initOnDevice");
 }
 
-__global__ void addAgentsOnDevice(BoidModel *gm, float *x_pos, float *y_pos){
+__global__ void addAgentsOnDevice(SocialForceModel *sfModel){
 	const int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx < AGENT_NO_D){ // user init step
-		PreyBoid *ag = new PreyBoid(idx, x_pos[idx], y_pos[idx], gm);
-		gm->preyPool->ptrArray[idx] = ag;
-		gm->preyPool->delMark[idx] = false;
+		//Add agent here
+		SocialForceAgent *ag = new SocialForceAgent(idx, sfModel);
+		sfModel->agentPool->ptrArray[idx] = ag;
+		sfModel->agentPool->delMark[idx] = false;
 	}
 	if (idx == 0) {
-		gm->getScheduler()->setAssignments(gm->getWorld()->getNeighborIdx());
+		//set assignment
 	}
 }
 
@@ -174,43 +175,11 @@ void readConfig(char *config_file){
 	//GRID_SIZE = AGENT_NO%BLOCK_SIZE==0 ? AGENT_NO/BLOCK_SIZE : AGENT_NO/BLOCK_SIZE + 1;
 }
 
-void writeRandDebug(int i, float* devRandDebug){
-	if (FILE_GEN == 1){
-		int gSize = GRID_SIZE(AGENT_NO);
-		if (i == SELECTION) {		
-			char *outfname = new char[10];		
-			sprintf(outfname, "gpuout%d.txt", i);		
-			printf("SELECTION\n");		
-			std::fstream randDebugOut;		
-			randDebugOut.open(outfname, std::ios::out);		
-			float *hostRandDebug = (float*)malloc(STRIP*gSize*BLOCK_SIZE*sizeof(float));		
-			cudaMemcpy(hostRandDebug, devRandDebug,		
-				STRIP*gSize*BLOCK_SIZE*sizeof(float), cudaMemcpyDeviceToHost);		
-			for(int i=0; i<AGENT_NO; i++) {		
-				randDebugOut
-					<<std::setw(4)
-					<<i<< "\t"
-					<<hostRandDebug[STRIP*i]<<"\t"
-					<<hostRandDebug[STRIP*i+1]<<"\t"
-					<<hostRandDebug[STRIP*i+2]<<"\t"
-					<<hostRandDebug[STRIP*i+3]<<"\t"
-					<<hostRandDebug[STRIP*i+4]<<"\t"
-					<<std::endl;		
-				randDebugOut.flush();		
-			}		
-			randDebugOut.close();		
-			free(hostRandDebug);
-			system("PAUSE");
-			exit(1);		
-		}	
-	}
-}
-
-void oneStep(BoidModel *model, BoidModel *model_h){
-	GAgent **worldAgentList = model_h->worldH->allAgents;
+void oneStep(SocialForceModel *model, SocialForceModel *model_h){
+	GAgent **worldAgentList = model_h->worldHost->allAgents;
 	GAgent **schAgentList = model_h->schedulerH->allAgents;
-	PreyBoid **poolAgentList = model_h->preyPoolHost->ptrArray;
-	AGENT_NO = model_h->preyPoolHost->numElem;
+	SocialForceAgent **poolAgentList = model_h->agentPoolHost->ptrArray;
+	AGENT_NO = model_h->agentPoolHost->numElem;
 	cudaMemcpy(worldAgentList, poolAgentList, AGENT_NO * sizeof(GAgent*), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(schAgentList, poolAgentList, AGENT_NO * sizeof(GAgent*), cudaMemcpyDeviceToDevice);
 	cudaMemcpyToSymbol(AGENT_NO_D, &AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
@@ -224,32 +193,19 @@ void oneStep(BoidModel *model, BoidModel *model_h){
 		);
 
 	getLastCudaError("before loop");
-	util::genNeighbor(model_h->world, model_h->worldH);
+	util::genNeighbor(model_h->world, model_h->worldHost);
 	getLastCudaError("end genNeighbor");
 	step<<<gSize, BLOCK_SIZE, sizeOfSmem>>>(model);
 	getLastCudaError("end step");	
 
 	int scrGSize = GRID_SIZE(MAX_AGENT_NO);
-	poolUtil::cleanup(model_h->preyPoolHost, model_h->preyPool);
+	poolUtil::cleanup(model_h->agentPoolHost, model_h->agentPool);
 }
 
 void mainWork(char *config_file){
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 	getLastCudaError("setting cache preference");
 	readConfig(config_file);
-	int gSize = GRID_SIZE(AGENT_NO); 
-
-	BoidModel *model_h = new BoidModel();
-	model_h->allocOnDevice();
-	BoidModel *model;
-	cudaMalloc((void**)&model, sizeof(BoidModel));
-	cudaMemcpy(model, model_h, sizeof(BoidModel), cudaMemcpyHostToDevice);	
-
-	float *x_pos, *y_pos;
-	size_t floatDataSize = AGENT_NO*sizeof(float);
-	cudaMalloc((void**)&x_pos, floatDataSize);
-	cudaMalloc((void**)&y_pos, floatDataSize);
-	initOnDevice(x_pos, y_pos);
 
 	size_t pVal;
 	cudaDeviceGetLimit(&pVal, cudaLimitMallocHeapSize);
@@ -258,23 +214,22 @@ void mainWork(char *config_file){
 	cudaDeviceGetLimit(&pVal, cudaLimitMallocHeapSize);
 	printf("cudaLimitMallocHeapSize: %d\n", pVal);
 
-	addAgentsOnDevice<<<gSize, BLOCK_SIZE>>>(model, x_pos, y_pos);
-	//schUtil::scheduleRepeatingAllAgents<<<1, BLOCK_SIZE>>>(model);
+	SocialForceModel *model_h = new SocialForceModel(BOARDER_D_H, BOARDER_D_H);
+	model_h->allocOnDevice();
+	SocialForceModel *model;
+	cudaMalloc((void**)&model, sizeof(SocialForceModel));
+	cudaMemcpy(model, model_h, sizeof(SocialForceModel), cudaMemcpyHostToDevice);	
+
+	int gSize = GRID_SIZE(AGENT_NO);
+	addAgentsOnDevice<<<gSize, BLOCK_SIZE>>>(model);
 	getLastCudaError("before going into the big loop");
 	printf("steps: %d\n", STEPS);
-
-	std::ifstream fin("randDebugOut2.txt");
-	float *devRandDebug;
-	cudaMalloc((void**)&devRandDebug, STRIP*MAX_AGENT_NO*sizeof(float));
-	cudaMemcpyToSymbol(randDebug, &devRandDebug, sizeof(devRandDebug),
-		0, cudaMemcpyHostToDevice);
 #ifdef _WIN32
 	GSimVisual::getInstance().setWorld(model_h->world);
 	for (int i=0; i<STEPS; i++){
 		//if ((i%(STEPS/10))==0) 
 		printf("STEP:%d ", i);
 		oneStep(model, model_h);
-		writeRandDebug(i, devRandDebug);
 	}
 	printf("finally total agent is %d\n", AGENT_NO);
 	GSimVisual::getInstance().stop();

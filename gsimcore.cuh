@@ -1,8 +1,7 @@
 #ifndef GSIMCORE_H
 #define GSIMCORE_H
 #include "gsimlib_header.cuh"
-#include "boidHeader.cuh"
-
+#include "SocialForceHeader.cuh"
 #include <curand_kernel.h>
 
 //class delaration
@@ -35,6 +34,8 @@ namespace util{
 	__global__ void gen_cellIdx_kernel(int *hash, Continuous2D *c2d);
 	void queryNeighbor(Continuous2D *c2d);
 	void genNeighbor(Continuous2D *world, Continuous2D *world_h);
+
+	void copyHostToDevice(void *hostPtr, void *devicePtr, size_t size);
 };
 
 class GAgent {
@@ -596,6 +597,12 @@ void util::genNeighbor(Continuous2D *world, Continuous2D *world_h)
 	iterCount++;
 	cudaFree(hash);
 	getLastCudaError("genNeighbor:cudaFree:hash");
+}
+
+void util::copyHostToDevice(void *hostPtr, void *devPtr, size_t size){
+	cudaMalloc(&devPtr, size);
+	cudaMemcpy(devPtr, hostPtr, size, cudaMemcpyHostToDevice);
+	getLastCudaError("copyHostToDevice");
 }
 
 __global__ void step(GModel *gm){

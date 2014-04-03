@@ -151,13 +151,15 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
+    <None Include="socialForce.cuh">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="boid.cuh" />
-    <None Include="boidHeader.cuh" />
     <None Include="gsimcore.cuh" />
     <None Include="gsimlib_header.cuh" />
     <None Include="gsimvisual.cuh" />
+    <None Include="SocialForceHeader.cuh" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="config.txt" />
