@@ -46,7 +46,7 @@ private:
 			glBufferData    = (PFNGLBUFFERDATAARBPROC)GET_PROC_ADDRESS("glBufferData");
 			glGenBuffers( 1, &bufferObj );
 			glBindBuffer( GL_PIXEL_UNPACK_BUFFER_ARB, bufferObj );
-			glBufferData( GL_PIXEL_UNPACK_BUFFER_ARB, this->height*this->height*sizeof(uchar4),
+			glBufferData( GL_PIXEL_UNPACK_BUFFER_ARB, this->width*this->height*sizeof(uchar4),
 				NULL, GL_DYNAMIC_DRAW_ARB );
 			cudaGraphicsGLRegisterBuffer(&resource, bufferObj, cudaGraphicsMapFlagsNone);
 			getLastCudaError("cudaGraphicsGLRegisterBuffer");

@@ -214,11 +214,10 @@ void mainWork(char *config_file){
 	cudaDeviceGetLimit(&pVal, cudaLimitMallocHeapSize);
 	printf("cudaLimitMallocHeapSize: %d\n", pVal);
 
+	SocialForceModel *model = NULL;
 	SocialForceModel *model_h = new SocialForceModel(BOARDER_D_H, BOARDER_D_H);
 	model_h->allocOnDevice();
-	SocialForceModel *model;
-	cudaMalloc((void**)&model, sizeof(SocialForceModel));
-	cudaMemcpy(model, model_h, sizeof(SocialForceModel), cudaMemcpyHostToDevice);	
+	util::copyHostToDevice(model_h, (void**)&model, sizeof(SocialForceModel));
 
 	int gSize = GRID_SIZE(AGENT_NO);
 	addAgentsOnDevice<<<gSize, BLOCK_SIZE>>>(model);

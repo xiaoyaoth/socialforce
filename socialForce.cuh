@@ -17,10 +17,10 @@ public:
 
 		worldHost = new Continuous2D(envHeight, envWidth, 0);
 		worldHost->allocOnDevice();
-		util::copyHostToDevice(worldHost, world, sizeof(Continuous2D));
+		util::copyHostToDevice(worldHost, (void**)&world, sizeof(Continuous2D));
 
 		agentPoolHost = new Pool<SocialForceAgent>(AGENT_NO, MAX_AGENT_NO);
-		util::copyHostToDevice(agentPoolHost, agentPool, sizeof(Pool<SocialForceAgent>));
+		util::copyHostToDevice(agentPoolHost, (void**)&agentPool, sizeof(Pool<SocialForceAgent>));
 	}
 };
 

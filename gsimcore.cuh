@@ -35,7 +35,7 @@ namespace util{
 	void queryNeighbor(Continuous2D *c2d);
 	void genNeighbor(Continuous2D *world, Continuous2D *world_h);
 
-	void copyHostToDevice(void *hostPtr, void *devicePtr, size_t size);
+	void copyHostToDevice(void *hostPtr, void **devicePtr, size_t size);
 };
 
 class GAgent {
@@ -599,9 +599,9 @@ void util::genNeighbor(Continuous2D *world, Continuous2D *world_h)
 	getLastCudaError("genNeighbor:cudaFree:hash");
 }
 
-void util::copyHostToDevice(void *hostPtr, void *devPtr, size_t size){
-	cudaMalloc(&devPtr, size);
-	cudaMemcpy(devPtr, hostPtr, size, cudaMemcpyHostToDevice);
+void util::copyHostToDevice(void *hostPtr, void **devPtr, size_t size){
+	cudaMalloc(devPtr, size);
+	cudaMemcpy(*devPtr, hostPtr, size, cudaMemcpyHostToDevice);
 	getLastCudaError("copyHostToDevice");
 }
 
