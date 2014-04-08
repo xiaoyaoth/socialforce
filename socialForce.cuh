@@ -33,15 +33,15 @@ public:
 		agentPoolHost = new Pool<SocialForceAgent>(AGENT_NO, MAX_AGENT_NO);
 		util::copyHostToDevice(agentPoolHost, (void**)&agentPool, sizeof(Pool<SocialForceAgent>));
 
-		int obsLineNumHost = 6;
+		int obsLineNumHost = 2;
 		size_t obsLinesSize = sizeof(struct obstacleLine) * obsLineNumHost;
 		struct obstacleLine *obsLinesHost = (struct obstacleLine *)malloc(obsLinesSize);
-		obsLinesHost[0].init(50, 20, 70, 45);
+		obsLinesHost[0].init(50, -20, 70, 45);
 		obsLinesHost[1].init(70, 55, 50, 120);
-		obsLinesHost[2].init(50, 45, 60, 45);
-		obsLinesHost[3].init(60, 45, 60, 55);
-		obsLinesHost[4].init(60, 55, 50, 55);
-		obsLinesHost[5].init(50, 55, 50, 45);
+		//obsLinesHost[2].init(50, 45, 60, 45);
+		//obsLinesHost[3].init(60, 45, 60, 55);
+		//obsLinesHost[4].init(60, 55, 50, 55);
+		//obsLinesHost[5].init(50, 55, 50, 45);
 
 		cudaMemcpyToSymbol(obsLines, obsLinesHost, obsLinesSize, 0, cudaMemcpyHostToDevice);
 		cudaMemcpyToSymbol(obsLineNum, &obsLineNumHost, sizeof(int), 0, cudaMemcpyHostToDevice);
@@ -245,8 +245,8 @@ public:
 
 		//newLoc.x += (this->random->uniform()-0.5) * width * 0.02 + loc.x;
 		//newLoc.y += (this->random->uniform()-0.5) * height * 0.02 + loc.y;
-		//newLoc.x = correctCrossBoader(newLoc.x, width);
-		//newLoc.y = correctCrossBoader(newLoc.y, height);
+		newLoc.x = correctCrossBoader(newLoc.x, width);
+		newLoc.y = correctCrossBoader(newLoc.y, height);
 
 		SocialForceAgentData_t *dataCopyLocalPtr = (SocialForceAgentData_t*)this->dataCopy;
 		dataCopyLocalPtr->loc = newLoc;
