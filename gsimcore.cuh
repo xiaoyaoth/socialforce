@@ -144,6 +144,9 @@ public:
 	__device__ float uniform(){
 		return curand_uniform(this->rState);
 	}
+	__device__ float gaussian(){
+		return curand_normal(this->rState);
+	}
 };
 
 //Continuous2D
@@ -315,7 +318,7 @@ __device__ void Continuous2D::calcPtrAndBoarder(iterInfo &info) const {
 		info.ptr = this->cellIdxStart[hash];
 		info.boarder = this->cellIdxEnd[hash];
 	}
-#ifdef BOID_DEBUG
+#ifdef DEBUG
 	else {
 		printf("x: %d, y: %d, hash: %d\n", info.cellCur.x, info.cellCur.y, hash);
 	}
@@ -328,7 +331,7 @@ __device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, da
 		elem->addValue(ag->getData());
 	} else
 		elem->loc.x = -1;
-#ifdef BOID_DEBUG
+#ifdef DEBUG
 	if (agPtr < -1 || agPtr > AGENT_NO_D + 32){
 		printf("Continuous2D::putAgentDataIntoSharedMem: ptr is %d, info.ptr is %d, lane is %d\n", agPtr, info.ptr, lane);
 	}
