@@ -68,8 +68,8 @@ public:
 		this->random = new GRandom(2345, id);
 		SocialForceAgentData_t *data = new SocialForceAgentData_t();
 		SocialForceAgentData_t *dataCopy = new SocialForceAgentData_t();
-		data->loc.x = (model->world->width-500) * this->random->uniform();
-		data->loc.y = (model->world->height-500) * this->random->uniform();
+		data->loc.x = (model->world->width) * this->random->uniform();
+		data->loc.y = (model->world->height) * this->random->uniform();
 		data->goal.x = 70;
 		data->goal.y = 50;
 		data->velocity.x = 4 * (this->random->uniform()-0.5);
