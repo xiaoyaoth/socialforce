@@ -121,6 +121,7 @@ public:
 	}
 
 	__device__ void step(GModel *model){
+		__syncthreads();
 		SocialForceModel *sfModel = (SocialForceModel*)model;
 		Continuous2D *world = sfModel->world;
 		float width = world->width;
@@ -152,6 +153,7 @@ public:
 		dataUnion *otherData, otherDataLocal;
 		float ds = 0;
 
+		
 		world->nextNeighborInit2(loc, 10, info);
 		otherData = world->nextAgentDataIntoSharedMem(info);
 		while (otherData != NULL) {
@@ -159,8 +161,6 @@ public:
 			ds = world->tds(otherDataLocal.loc, loc);
 			if (ds < 50 && ds > 0) {
 				info.count++;
-				//newLoc.x += (otherDataLocal.loc.x - loc.x);
-				//newLoc.y += (otherDataLocal.loc.y - loc.y);
 				computeSocialForce(dataLocal, otherDataLocal, fSum);
 			}
 			otherData = world->nextAgentDataIntoSharedMem(info);
