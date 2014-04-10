@@ -7,12 +7,14 @@
 #include "cuda_gl_interop.h"
 #include "gsimcore.cuh"
 
+class GSimVisual;
+
 namespace visUtil{
 	__global__ void paint(uchar4 *devPtr, const Continuous2D *world, int width, int height, int scale);
 };
 
 class GSimVisual{
-private:
+public:
 	GLuint bufferObj;
 	cudaGraphicsResource *resource;
 	Continuous2D *world;
@@ -67,7 +69,7 @@ private:
 		getLastCudaError("cudaGraphicsMapResources");
 		cudaGraphicsResourceGetMappedPointer( (void**)&devPtr, &size, vis.resource);
 		getLastCudaError("cudaGraphicsResourceGetMappedPointer");
-		
+		//paint kernel here...
 		cudaGraphicsUnmapResources(1, &vis.resource, NULL);
 		getLastCudaError("cudaGraphicsUnmapResources");
 
@@ -75,7 +77,7 @@ private:
 	}
 
 	static void drawFunc(){
-		glClearColor( 0.0, 0.0, 0.0, 1.0 );
+		glClearColor( 1.0, 1.0, 1.0, 1.0 );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		
 		GSimVisual vis = GSimVisual::getInstance();
@@ -89,13 +91,15 @@ private:
 		cudaMemset(devPtr, 0, size);
 		getLastCudaError("cudaMemset");
 
+		glEnable(GL_TEXTURE_2D);
 		int gSize = GRID_SIZE(AGENT_NO);
 		visUtil::paint<<<gSize, BLOCK_SIZE>>>(devPtr, vis.world, vis.width, vis.height, vis.scale);
 
 		cudaGraphicsUnmapResources(1, &vis.resource, NULL);
 		getLastCudaError("cudaGraphicsUnmapResources");
 
-		glDrawPixels( vis.height, vis.height, GL_RGBA,GL_UNSIGNED_BYTE, 0 );
+		glDrawPixels(vis.width * vis.scale, vis.height * vis.scale, GL_RGBA,GL_UNSIGNED_BYTE, 0 );
+
 
 		glutSwapBuffers();
 		glutPostRedisplay();
@@ -131,18 +135,37 @@ __global__ void visUtil::paint(uchar4 *devPtr, const Continuous2D *world, int wi
 		float2d_t myLoc = ag->getLoc();
 		int canvasX = (int)(myLoc.x * width / world->width);
 		int canvasY = (int)(myLoc.y * height / world->height);
-		for (int i = 0; i < scale; i++)
-			for (int j = 0; j < scale; j++) 
+		for (int i = 0; i < 2*scale; i++)
+			for (int j = 0; j < 2*scale; j++) 
 			{
 				int canvasXNew = canvasX * scale + j;
 				int canvasYNew = canvasY * scale + i;
-				int canvasIdx = canvasYNew * height * scale + canvasXNew;
+				int canvasIdx = canvasYNew * width * scale + canvasXNew;
 				devPtr[canvasIdx].x = 0;
 				devPtr[canvasIdx].y = 255;
 				devPtr[canvasIdx].z = 0;
 				devPtr[canvasIdx].w = 255;
 			}
 	}
+	if (blockIdx.x == 0) {
+		int segLen = height / blockDim.x;
+		int canvasX = (int)(25 * width / world->width);
+		int canvasY = (int)(threadIdx.x * segLen);
+		float door = (float)threadIdx.x / (float)blockDim.x * 100;
+		bool doorFlag = door < 49. || door > 51.;
+		int canvasXNew = canvasX * scale;
+		int canvasYNew = canvasY * scale;
+		for (int i = 0; i < 4; i++) {
+			int canvasIdx = (canvasYNew +i) * width * scale + canvasXNew;
+			if (doorFlag){
+				devPtr[canvasIdx].x = 255;
+				devPtr[canvasIdx].y = 255;
+				devPtr[canvasIdx].z = 255;
+				devPtr[canvasIdx].w = 255;
+			}
+		}
+	}
 }
+
 
 #endif

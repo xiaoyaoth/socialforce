@@ -10,7 +10,7 @@
 #define	B 0.1
 #define	k1 (1.2 * 100000)
 #define k2 (2.4 * 100000)
-#define	maxv 8
+#define	maxv 3
 
 class SocialForceModel;
 class SocialForceAgent;
@@ -36,8 +36,8 @@ public:
 		int obsLineNumHost = 2;
 		size_t obsLinesSize = sizeof(struct obstacleLine) * obsLineNumHost;
 		struct obstacleLine *obsLinesHost = (struct obstacleLine *)malloc(obsLinesSize);
-		obsLinesHost[0].init(50, -20, 70, 45);
-		obsLinesHost[1].init(70, 55, 50, 120);
+		obsLinesHost[0].init(20, -20, 25, 49);
+		obsLinesHost[1].init(25, 51, 20,120);
 		//obsLinesHost[2].init(50, 45, 60, 45);
 		//obsLinesHost[3].init(60, 45, 60, 55);
 		//obsLinesHost[4].init(60, 55, 50, 55);
@@ -68,10 +68,10 @@ public:
 		this->random = new GRandom(2345, id);
 		SocialForceAgentData_t *data = new SocialForceAgentData_t();
 		SocialForceAgentData_t *dataCopy = new SocialForceAgentData_t();
-		data->loc.x = (model->world->width) * this->random->uniform();
-		data->loc.y = (model->world->height) * this->random->uniform();
-		data->goal.x = 70;
+		data->goal.x = 25;
 		data->goal.y = 50;
+		data->loc.x = data->goal.x + (model->world->width - data->goal.x) * this->random->uniform();
+		data->loc.y = (model->world->height) * this->random->uniform();
 		data->velocity.x = 4 * (this->random->uniform()-0.5);
 		data->velocity.y = 4 * (this->random->uniform()-0.5);
 		data->v0 = 2;
@@ -125,6 +125,7 @@ public:
 		Continuous2D *world = sfModel->world;
 		float width = world->width;
 		float height = world->height;
+		float cMass = 100;
 
 		iterInfo info;
 		
@@ -145,13 +146,13 @@ public:
 		diff.y = v0 * (goal.y - loc.y) / d0;
 		dvt.x = (diff.x - velo.x) / tao;
 		dvt.y = (diff.y - velo.y) / tao;
-
+		
 		//compute force with other agents
 		float2d_t fSum; fSum.x = 0; fSum.y = 0;
 		dataUnion *otherData, otherDataLocal;
 		float ds = 0;
 
-		world->nextNeighborInit2(loc, 50, info);
+		world->nextNeighborInit2(loc, 10, info);
 		otherData = world->nextAgentDataIntoSharedMem(info);
 		while (otherData != NULL) {
 			otherDataLocal = *otherData;
@@ -164,9 +165,8 @@ public:
 			}
 			otherData = world->nextAgentDataIntoSharedMem(info);
 		}
-
+		
 		//compute force with wall
-		float cMass = 100;
 		for (int wallIdx = 0; wallIdx < obsLineNum; wallIdx++) {
 			float diw, crx, cry;
 			diw = obsLines[wallIdx].pointToLineDist(loc, crx, cry);
@@ -191,14 +191,15 @@ public:
 			fSum.x += fniwx - fiwKgx;
 			fSum.y += fniwy - fiwKgy;
 		}
+		
 
 		//sum up
 		dvt.x += fSum.x / mass;
 		dvt.y += fSum.y / mass;
-
+		
 		float2d_t newVelo = velo;
 		float2d_t newLoc = loc;
-		float2d_t newGoal; newGoal.x = 0; newGoal.y = 0;
+		float2d_t newGoal = goal;
 		float tick = 0.1;
 		newVelo.x += dvt.x * tick * (1 + this->random->gaussian() * 0.1);
 		newVelo.y += dvt.y * tick * (1 + this->random->gaussian() * 0.1);
@@ -234,13 +235,14 @@ public:
 
 		newVelo.x *= mint;
 		newVelo.y *= mint;
-		newLoc.x += 0.5 * newVelo.x * tick;
-		newLoc.y += 0.5 * newVelo.y * tick;
+		newLoc.x += newVelo.x * tick;
+		newLoc.y += newVelo.y * tick;
 
-		if ((newLoc.x + mass/cMass >= 65) && (newLoc.y - mass/cMass > 45) && (newLoc.y - mass/cMass < 55)) 
+		if ((newLoc.x - mass/cMass <= 25) && (newLoc.y - mass/cMass > 49) && (newLoc.y - mass/cMass < 51)) 
 		{
-			newGoal.x = 150;
-			newGoal.y = 50;
+			//int idx = threadIdx.x + blockIdx.x * blockDim.x;
+			//sfModel->agentPool->remove(idx);
+			newGoal.x = 0;
 		}
 
 		//newLoc.x += (this->random->uniform()-0.5) * width * 0.02 + loc.x;
