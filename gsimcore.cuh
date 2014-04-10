@@ -52,11 +52,7 @@ public:
 	__device__ void swapDataAndCopy();
 	__device__ virtual void step(GModel *model) = 0;
 	__device__ virtual ~GAgent() {}
-	__device__ virtual void fillSharedMem(void *dataInSmem) 
-	{
-		GAgentData_t *dataInRealFormat = (GAgentData_t*)dataInSmem;
-		*dataInRealFormat = *this->data;
-	}
+	__device__ virtual void fillSharedMem(void *dataInSmem) = 0;
 	int rank;
 	int time;
 };
