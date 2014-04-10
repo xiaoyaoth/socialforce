@@ -36,7 +36,7 @@ public:
 		int obsLineNumHost = 2;
 		size_t obsLinesSize = sizeof(struct obstacleLine) * obsLineNumHost;
 		struct obstacleLine *obsLinesHost = (struct obstacleLine *)malloc(obsLinesSize);
-		obsLinesHost[0].init(20, -20, 25, 49);
+		obsLinesHost[0].init(20, -20, 25, 48);
 		obsLinesHost[1].init(25, 51, 20,120);
 		//obsLinesHost[2].init(50, 45, 60, 45);
 		//obsLinesHost[3].init(60, 45, 60, 55);
