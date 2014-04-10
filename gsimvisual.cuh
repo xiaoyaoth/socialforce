@@ -152,7 +152,7 @@ __global__ void visUtil::paint(uchar4 *devPtr, const Continuous2D *world, int wi
 		int canvasX = (int)(25 * width / world->width);
 		int canvasY = (int)(threadIdx.x * segLen);
 		float door = (float)threadIdx.x / (float)blockDim.x * 100;
-		bool doorFlag = door < 49. || door > 51.;
+		bool doorFlag = door < 48. || door > 51.;
 		int canvasXNew = canvasX * scale;
 		int canvasYNew = canvasY * scale;
 		for (int i = 0; i < 4; i++) {

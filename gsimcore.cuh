@@ -1,7 +1,6 @@
 #ifndef GSIMCORE_H
 #define GSIMCORE_H
 #include "gsimlib_header.cuh"
-#include "SocialForceHeader.cuh"
 #include <curand_kernel.h>
 
 //class delaration
@@ -53,6 +52,11 @@ public:
 	__device__ void swapDataAndCopy();
 	__device__ virtual void step(GModel *model) = 0;
 	__device__ virtual ~GAgent() {}
+	__device__ virtual void fillSharedMem(void *dataInSmem) 
+	{
+		GAgentData_t *dataInRealFormat = (GAgentData_t*)dataInSmem;
+		*dataInRealFormat = *this->data;
+	}
 	int rank;
 	int time;
 };
@@ -90,11 +94,11 @@ public:
 	__device__ float tdy(float ay, float by) const;
 	__device__ float tds(float2d_t aloc, float2d_t bloc) const;
 	//Neighbors related
-	__device__ dataUnion* nextNeighborInit2(float2d_t loc, float range, iterInfo &info) const;
+	__device__ void nextNeighborInit2(float2d_t loc, float range, iterInfo &info) const;
 	__device__ void resetNeighborInit(iterInfo &info) const;
 	__device__ void calcPtrAndBoarder(iterInfo &info) const;
-	__device__ void putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const;
-	__device__ dataUnion* nextAgentDataIntoSharedMem(iterInfo &info) const;
+	template<class dataUnion> __device__ void putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const;
+	template<class dataUnion> __device__ dataUnion* nextAgentDataFromSharedMem(iterInfo &info) const;
 	__device__ GAgentData_t *nextAgentData(iterInfo &info) const;
 	//__global__ functions
 	friend __global__ void util::gen_hash_kernel(int *hash, Continuous2D *c2d);
@@ -148,6 +152,22 @@ public:
 		return curand_normal(this->rState);
 	}
 };
+
+//GAgent
+__device__ int GAgent::initId() {
+	return atomicInc(&GLOBAL_ID, UINT_MAX);
+}
+__device__ GAgentData_t *GAgent::getData(){
+	return this->data;
+}
+__device__ float2d_t GAgent::getLoc() const{
+	return this->data->loc;
+}
+__device__ void GAgent::swapDataAndCopy() {
+	GAgentData_t *temp = this->data;
+	this->data = this->dataCopy;
+	this->dataCopy = temp;
+}
 
 //Continuous2D
 void Continuous2D::allocOnDevice(){
@@ -244,7 +264,7 @@ __device__ float Continuous2D::tds(const float2d_t loc1, const float2d_t loc2) c
 	float x = dxsq+dysq;
 	return sqrt(x);
 }
-__device__ dataUnion* Continuous2D::nextNeighborInit2(float2d_t agLoc, float range, iterInfo &info) const {
+__device__ void Continuous2D::nextNeighborInit2(float2d_t agLoc, float range, iterInfo &info) const {
 	const unsigned int tid = threadIdx.x;
 	const unsigned int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -301,7 +321,6 @@ __device__ dataUnion* Continuous2D::nextNeighborInit2(float2d_t agLoc, float ran
 #endif
 
 	this->calcPtrAndBoarder(info);
-	return NULL;
 }
 __device__ void Continuous2D::resetNeighborInit(iterInfo &info) const{
 	info.ptr = -1;
@@ -324,11 +343,11 @@ __device__ void Continuous2D::calcPtrAndBoarder(iterInfo &info) const {
 	}
 #endif
 }
-__device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const{
+template<class dataUnion> __device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const{
 	int agPtr = info.ptr + lane;
 	if (agPtr <= info.boarder && agPtr >=0) {
 		GAgent *ag = this->obtainAgentByInfoPtr(agPtr);
-		elem->addValue(ag->getData());
+		ag->fillSharedMem(elem);
 	} else
 		elem->loc.x = -1;
 #ifdef DEBUG
@@ -337,7 +356,7 @@ __device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, da
 	}
 #endif
 }
-__device__ dataUnion *Continuous2D::nextAgentDataIntoSharedMem(iterInfo &info) const {
+template<class dataUnion> __device__ dataUnion *Continuous2D::nextAgentDataFromSharedMem(iterInfo &info) const {
 	dataUnion *unionArray = (dataUnion*)&smem[4*blockDim.x];
 	const int tid = threadIdx.x;
 	const int lane = tid & 31;
@@ -361,7 +380,8 @@ __device__ dataUnion *Continuous2D::nextAgentDataIntoSharedMem(iterInfo &info) c
 		dataUnion *elem = &unionArray[tid];
 		this->putAgentDataIntoSharedMem(info, elem, tid, lane);
 	}
-	dataUnion *elem = &unionArray[tid-lane+info.ptrInSmem];
+
+	dataUnion *elem = &unionArray[tid - lane + info.ptrInSmem];
 	info.ptrInSmem++;
 	info.ptr++;
 
@@ -376,7 +396,7 @@ __device__ dataUnion *Continuous2D::nextAgentDataIntoSharedMem(iterInfo &info) c
 		}
 		this->calcPtrAndBoarder(info);
 		this->putAgentDataIntoSharedMem(info, &unionArray[tid], tid, lane);
-		elem = &unionArray[tid-lane+info.ptrInSmem];
+		elem = &unionArray[tid - lane + info.ptrInSmem];
 		info.ptrInSmem++;
 		info.ptr++;
 	}
@@ -414,22 +434,6 @@ __device__ GAgentData_t *Continuous2D::nextAgentData(iterInfo &info) const {
 	GAgent *ag = this->obtainAgentByInfoPtr(info.ptr);
 	info.ptr++;
 	return ag->getData();
-}
-
-//GAgent
-__device__ int GAgent::initId() {
-	return atomicInc(&GLOBAL_ID, UINT_MAX);
-}
-__device__ GAgentData_t *GAgent::getData(){
-	return this->data;
-}
-__device__ float2d_t GAgent::getLoc() const{
-	return this->data->loc;
-}
-__device__ void GAgent::swapDataAndCopy() {
-	GAgentData_t *temp = this->data;
-	this->data = this->dataCopy;
-	this->dataCopy = temp;
 }
 
 //GScheduler

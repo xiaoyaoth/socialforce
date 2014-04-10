@@ -36,7 +36,7 @@ public:
 		int obsLineNumHost = 2;
 		size_t obsLinesSize = sizeof(struct obstacleLine) * obsLineNumHost;
 		struct obstacleLine *obsLinesHost = (struct obstacleLine *)malloc(obsLinesSize);
-		obsLinesHost[0].init(20, -20, 25, 49);
+		obsLinesHost[0].init(20, -20, 25, 48);
 		obsLinesHost[1].init(25, 51, 20,120);
 		//obsLinesHost[2].init(50, 45, 60, 45);
 		//obsLinesHost[3].init(60, 45, 60, 55);
@@ -152,10 +152,9 @@ public:
 		float2d_t fSum; fSum.x = 0; fSum.y = 0;
 		dataUnion *otherData, otherDataLocal;
 		float ds = 0;
-
 		
 		world->nextNeighborInit2(loc, 10, info);
-		otherData = world->nextAgentDataIntoSharedMem(info);
+		otherData = world->nextAgentDataFromSharedMem<dataUnion>(info);
 		while (otherData != NULL) {
 			otherDataLocal = *otherData;
 			ds = world->tds(otherDataLocal.loc, loc);
@@ -163,7 +162,7 @@ public:
 				info.count++;
 				computeSocialForce(dataLocal, otherDataLocal, fSum);
 			}
-			otherData = world->nextAgentDataIntoSharedMem(info);
+			otherData = world->nextAgentDataFromSharedMem<dataUnion>(info);
 		}
 		
 		//compute force with wall
@@ -254,6 +253,12 @@ public:
 		dataCopyLocalPtr->loc = newLoc;
 		dataCopyLocalPtr->velocity = newVelo;
 		dataCopyLocalPtr->goal = newGoal;
+	}
+
+	__device__ void fillSharedMem(void *dataPtr){
+		SocialForceAgentData_t *dataSmem = (SocialForceAgentData_t*)dataPtr;
+		SocialForceAgentData_t *dataAgent = (SocialForceAgentData_t*)this->data;
+		*dataSmem = *dataAgent;
 	}
 };
 
