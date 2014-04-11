@@ -70,8 +70,8 @@ public:
 		SocialForceAgentData_t *dataCopy = new SocialForceAgentData_t();
 		data->goal.x = 25;
 		data->goal.y = 50;
-		data->loc.x = data->goal.x + (model->world->width - data->goal.x) * this->random->uniform();
-		data->loc.y = (model->world->height) * this->random->uniform();
+		data->loc.x = data->goal.x + (model->world->width - data->goal.x) * this->random->uniform() - 0.1;
+		data->loc.y = (model->world->height) * this->random->uniform() - 0.1;
 		data->velocity.x = 4 * (this->random->uniform()-0.5);
 		data->velocity.y = 4 * (this->random->uniform()-0.5);
 		data->v0 = 2;

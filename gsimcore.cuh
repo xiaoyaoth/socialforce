@@ -107,7 +107,6 @@ public:
 class GScheduler{
 public:
 	GAgent **allAgents;
-	const int *assignments;
 	float time;
 	int steps;
 public:
@@ -115,7 +114,6 @@ public:
 		GAgent *ag);
 	__device__ bool scheduleRepeating(const float time, const int rank, 
 		GAgent *ag, const float interval);
-	__device__ void setAssignments(const int *newAssignments);
 	__device__ GAgent* obtainAgentPerThread() const;
 	__device__ GAgent* obtainAgentById(int idx) const;
 	__device__ bool add(GAgent* ag, int idx);
@@ -446,16 +444,10 @@ __device__ bool GScheduler::scheduleRepeating(const float time, const int rank, 
 
 	return true;
 }
-__device__ void GScheduler::setAssignments(const int* newAs){
-	this->assignments = newAs;
-}
 __device__ GAgent* GScheduler::obtainAgentPerThread() const {
 	const int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx < AGENT_NO_D) {
-		if (this->assignments == NULL) 
-			return this->allAgents[idx];
-		else
-			return this->allAgents[this->assignments[idx]];
+		return this->allAgents[idx];
 	}
 	return NULL;
 }
@@ -474,7 +466,6 @@ __device__ bool GScheduler::add(GAgent *ag, int idx){
 void GScheduler::allocOnHost(){
 }
 void GScheduler::allocOnDevice(){
-	this->assignments = NULL;
 	cudaMalloc((void**)&this->allAgents, MAX_AGENT_NO*sizeof(GAgent*));
 	cudaMalloc((void**)&time, sizeof(int));
 	cudaMalloc((void**)&steps, sizeof(int));
@@ -552,6 +543,7 @@ void util::sort_hash_kernel(int *hash, int *neighborIdx)
 	getLastCudaError("sort_hash_kernel");
 }
 void util::genNeighbor(Continuous2D *world, Continuous2D *world_h)
+
 {
 	static int iterCount = 0;
 	int bSize = BLOCK_SIZE;
