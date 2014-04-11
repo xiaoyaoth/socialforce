@@ -20,14 +20,10 @@ __constant__ int obsLineNum;
 
 class SocialForceModel : public GModel {
 public:
-	Continuous2D *world, *worldHost;
 	Pool<SocialForceAgent> *agentPool, *agentPoolHost;
 
 	__host__ SocialForceModel(int envHeight, int envWidth){
-		GModel::allocOnDevice();
-
 		worldHost = new Continuous2D(envHeight, envWidth, 0);
-		worldHost->allocOnDevice();
 		util::copyHostToDevice(worldHost, (void**)&world, sizeof(Continuous2D));
 
 		agentPoolHost = new Pool<SocialForceAgent>(AGENT_NO, MAX_AGENT_NO);
@@ -70,8 +66,8 @@ public:
 		SocialForceAgentData_t *dataCopy = new SocialForceAgentData_t();
 		data->goal.x = 25;
 		data->goal.y = 50;
-		data->loc.x = data->goal.x + (model->world->width - data->goal.x) * this->random->uniform();
-		data->loc.y = (model->world->height) * this->random->uniform();
+		data->loc.x = data->goal.x + (model->world->width - data->goal.x) * this->random->uniform() - 0.1;
+		data->loc.y = (model->world->height) * this->random->uniform() - 0.1;
 		data->velocity.x = 4 * (this->random->uniform()-0.5);
 		data->velocity.y = 4 * (this->random->uniform()-0.5);
 		data->v0 = 2;
@@ -82,7 +78,7 @@ public:
 		this->dataCopy = dataCopy;
 	}
 
-	__device__ void computeSocialForce(const SocialForceAgentData_t &myData, const dataUnion &otherData, float2d_t &fSum){
+	__device__ void computeSocialForce(const SocialForceAgentData_t &myData, const SocialForceAgentData_t &otherData, float2d_t &fSum){
 		float cMass = 100;
 		//my data
 		const float2d_t& loc = myData.loc;
@@ -150,20 +146,19 @@ public:
 		
 		//compute force with other agents
 		float2d_t fSum; fSum.x = 0; fSum.y = 0;
-		dataUnion *otherData, otherDataLocal;
+		SocialForceAgentData_t *otherData, otherDataLocal;
 		float ds = 0;
-
 		
-		world->nextNeighborInit2(loc, 10, info);
-		otherData = world->nextAgentDataIntoSharedMem(info);
+		world->nextNeighborInit2(loc, 6, info);
+		otherData = world->nextAgentDataFromSharedMem<SocialForceAgentData_t>(info);
 		while (otherData != NULL) {
 			otherDataLocal = *otherData;
 			ds = world->tds(otherDataLocal.loc, loc);
-			if (ds < 50 && ds > 0) {
+			if (ds < 6 && ds > 0) {
 				info.count++;
 				computeSocialForce(dataLocal, otherDataLocal, fSum);
 			}
-			otherData = world->nextAgentDataIntoSharedMem(info);
+			otherData = world->nextAgentDataFromSharedMem<SocialForceAgentData_t>(info);
 		}
 		
 		//compute force with wall
@@ -254,6 +249,12 @@ public:
 		dataCopyLocalPtr->loc = newLoc;
 		dataCopyLocalPtr->velocity = newVelo;
 		dataCopyLocalPtr->goal = newGoal;
+	}
+
+	__device__ void fillSharedMem(void *dataPtr){
+		SocialForceAgentData_t *dataSmem = (SocialForceAgentData_t*)dataPtr;
+		SocialForceAgentData_t *dataAgent = (SocialForceAgentData_t*)this->data;
+		*dataSmem = *dataAgent;
 	}
 };
 

@@ -12,20 +12,20 @@ typedef struct socialForceAgentData : public GAgentData_t {
 	float mass;
 } SocialForceAgentData_t;
 
-typedef struct dataUnionStruct : public GAgentData_t {
-	float2d_t goal;
-	float2d_t velocity;
-	float v0;
-	float mass;
-	__device__ void addValue(GAgentData_t *data){
-		SocialForceAgentData_t *dataLocal = (SocialForceAgentData_t*)data;
-		this->loc = dataLocal->loc;
-		this->goal = dataLocal->goal;
-		this->velocity = dataLocal->velocity;
-		this->v0 = dataLocal->v0;
-		this->mass = dataLocal->mass;
-	}
-}dataUnion;
+//typedef struct dataUnionStruct : public GAgentData_t {
+//	float2d_t goal;
+//	float2d_t velocity;
+//	float v0;
+//	float mass;
+//	__device__ void addValue(GAgentData_t *data){
+//		SocialForceAgentData_t *dataLocal = (SocialForceAgentData_t*)data;
+//		this->loc = dataLocal->loc;
+//		this->goal = dataLocal->goal;
+//		this->velocity = dataLocal->velocity;
+//		this->v0 = dataLocal->v0;
+//		this->mass = dataLocal->mass;
+//	}
+//}dataUnion;
 
 struct obstacleLine
 {

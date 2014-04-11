@@ -1,7 +1,6 @@
 #ifndef GSIMCORE_H
 #define GSIMCORE_H
 #include "gsimlib_header.cuh"
-#include "SocialForceHeader.cuh"
 #include <curand_kernel.h>
 
 //class delaration
@@ -53,6 +52,7 @@ public:
 	__device__ void swapDataAndCopy();
 	__device__ virtual void step(GModel *model) = 0;
 	__device__ virtual ~GAgent() {}
+	__device__ virtual void fillSharedMem(void *dataInSmem) = 0;
 	int rank;
 	int time;
 };
@@ -69,19 +69,25 @@ public:
 	int *cellIdxStart;
 	int *cellIdxEnd;
 public:
-	Continuous2D(float w, float h, float disc){
+	__host__ Continuous2D(float w, float h, float disc){
 		this->width = w;
 		this->height = h;
 		this->discretization = disc;
+		size_t sizeAgArray = MAX_AGENT_NO*sizeof(int);
+		size_t sizeCellArray = CELL_NO*sizeof(int);
+
+		cudaMalloc((void**)&this->allAgents, MAX_AGENT_NO*sizeof(GAgent*));
+		getLastCudaError("Continuous2D():cudaMalloc:allAgents");
+		cudaMalloc((void**)&neighborIdx, sizeAgArray);
+		getLastCudaError("Continuous2D():cudaMalloc:neighborIdx");
+		cudaMalloc((void**)&cellIdxStart, sizeCellArray);
+		getLastCudaError("Continuous2D():cudaMalloc:cellIdxStart");
+		cudaMalloc((void**)&cellIdxEnd, sizeCellArray);
+		getLastCudaError("Continuous2D():cudaMalloc:cellIdxEnd");
 	}
-	void allocOnDevice();
-	void allocOnHost();
 	//GScheduler helper function
 	__device__ const int* getNeighborIdx() const;
 	//agent list manipulation
-	__device__ bool add(GAgent *ag, int idx);
-	__device__ bool remove(GAgent *ag);
-	__device__ GAgent* obtainAgentPerThread() const;
 	__device__ GAgent* obtainAgentByInfoPtr(int ptr) const;
 	//distance utility
 	__device__ float stx(float x) const;
@@ -90,11 +96,11 @@ public:
 	__device__ float tdy(float ay, float by) const;
 	__device__ float tds(float2d_t aloc, float2d_t bloc) const;
 	//Neighbors related
-	__device__ dataUnion* nextNeighborInit2(float2d_t loc, float range, iterInfo &info) const;
+	__device__ void nextNeighborInit2(float2d_t loc, float range, iterInfo &info) const;
 	__device__ void resetNeighborInit(iterInfo &info) const;
 	__device__ void calcPtrAndBoarder(iterInfo &info) const;
-	__device__ void putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const;
-	__device__ dataUnion* nextAgentDataIntoSharedMem(iterInfo &info) const;
+	template<class dataUnion> __device__ void putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const;
+	template<class dataUnion> __device__ dataUnion* nextAgentDataFromSharedMem(iterInfo &info) const;
 	__device__ GAgentData_t *nextAgentData(iterInfo &info) const;
 	//__global__ functions
 	friend __global__ void util::gen_hash_kernel(int *hash, Continuous2D *c2d);
@@ -107,7 +113,6 @@ public:
 class GScheduler{
 public:
 	GAgent **allAgents;
-	const int *assignments;
 	float time;
 	int steps;
 public:
@@ -115,23 +120,29 @@ public:
 		GAgent *ag);
 	__device__ bool scheduleRepeating(const float time, const int rank, 
 		GAgent *ag, const float interval);
-	__device__ void setAssignments(const int *newAssignments);
-	__device__ GAgent* obtainAgentPerThread() const;
-	__device__ GAgent* obtainAgentById(int idx) const;
 	__device__ bool add(GAgent* ag, int idx);
 	__device__ bool remove(GAgent *ag);
-	void allocOnHost();
-	void allocOnDevice();
+	__host__ GScheduler(){
+		cudaMalloc((void**)&this->allAgents, MAX_AGENT_NO*sizeof(GAgent*));
+		cudaMalloc((void**)&time, sizeof(int));
+		cudaMalloc((void**)&steps, sizeof(int));
+		getLastCudaError("Scheduler::allocOnDevice:cudaMalloc");
+	}
 };
 class GModel{
 public:
-	GScheduler *scheduler, *schedulerH;
+	GScheduler *scheduler, *schedulerHost;
+	Continuous2D *world, *worldHost;
 public:
-	void allocOnHost();
-	void allocOnDevice();
-	__device__ GScheduler* getScheduler() const;
 	__device__ void addToScheduler(GAgent *ag, int idx);
 	__device__ void foo();
+	__host__ GModel(){
+		world = NULL;
+		worldHost = NULL;
+		schedulerHost = new GScheduler();
+		util::copyHostToDevice(schedulerHost, (void**)&scheduler, sizeof(GScheduler));
+		getLastCudaError("GModel()");
+	}
 };
 class GRandom {
 	curandState *rState;
@@ -149,54 +160,35 @@ public:
 	}
 };
 
-//Continuous2D
-void Continuous2D::allocOnDevice(){
-	size_t sizeAgArray = MAX_AGENT_NO*sizeof(int);
-	size_t sizeCellArray = CELL_NO*sizeof(int);
+//GAgent
+__device__ int GAgent::initId() {
+	return atomicInc(&GLOBAL_ID, UINT_MAX);
+}
+__device__ GAgentData_t *GAgent::getData(){
+	return this->data;
+}
+__device__ float2d_t GAgent::getLoc() const{
+	return this->data->loc;
+}
+__device__ void GAgent::swapDataAndCopy() {
+	GAgentData_t *temp = this->data;
+	this->data = this->dataCopy;
+	this->dataCopy = temp;
+}
 
-	cudaMalloc((void**)&this->allAgents, MAX_AGENT_NO*sizeof(GAgent*));
-	getLastCudaError("Continuous2D():cudaMalloc:allAgents");
-	cudaMalloc((void**)&neighborIdx, sizeAgArray);
-	getLastCudaError("Continuous2D():cudaMalloc:neighborIdx");
-	cudaMalloc((void**)&cellIdxStart, sizeCellArray);
-	getLastCudaError("Continuous2D():cudaMalloc:cellIdxStart");
-	cudaMalloc((void**)&cellIdxEnd, sizeCellArray);
-	getLastCudaError("Continuous2D():cudaMalloc:cellIdxEnd");
-}
-void Continuous2D::allocOnHost(){
-	size_t sizeAgArray = MAX_AGENT_NO*sizeof(int);
-	size_t sizeCellArray = CELL_NO*sizeof(int);
-	neighborIdx = (int*)malloc(sizeAgArray);
-	cellIdxStart = (int*)malloc(sizeCellArray);
-}
+//Continuous2D
 __device__ const int* Continuous2D::getNeighborIdx() const{
 	return this->neighborIdx;
 }
-__device__ bool Continuous2D::add(GAgent *ag, int idx) {
-	if(idx>=MAX_AGENT_NO_D)
-		return false;
-	this->allAgents[idx]=ag;
-	return true;
-}
-__device__ GAgent* Continuous2D::obtainAgentPerThread() const {
-	const int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	GAgent *ag;
-	if (idx < AGENT_NO_D)
-		ag = this->allAgents[idx];
-	else
-		ag = NULL;
-	return ag;
-}
 __device__ GAgent* Continuous2D::obtainAgentByInfoPtr(int ptr) const {
-	GAgent *ag;
+	GAgent *ag = NULL;
 	if (ptr < AGENT_NO_D && ptr >= 0){
 		int agIdx = this->neighborIdx[ptr];
 		if (agIdx < AGENT_NO_D && agIdx >=0)
 			ag = this->allAgents[agIdx];
 		else 
 			printf("Continuous2D::obtainAgentByInfoPtr:ptr:%d\n", ptr);
-	} else
-		ag = NULL;
+	} 
 	return ag;
 }
 __device__ float Continuous2D::stx(const float x) const{
@@ -224,17 +216,17 @@ __device__ float Continuous2D::sty(const float y) const {
 }
 __device__ float Continuous2D::tdx(float ax, float bx) const {
 	float dx = abs(ax-bx);
-	if (dx < BOARDER_R_D/2)
+	if (dx < WIDTH_D/2)
 		return dx;
 	else
-		return BOARDER_R_D-dx;
+		return WIDTH_D-dx;
 }
 __device__ float Continuous2D::tdy(float ay, float by) const {
 	float dy = abs(ay-by);
-	if (dy < BOARDER_D_D/2)
+	if (dy < HEIGHT_D/2)
 		return dy;
 	else
-		return BOARDER_D_D-dy;
+		return HEIGHT_D-dy;
 }
 __device__ float Continuous2D::tds(const float2d_t loc1, const float2d_t loc2) const {
 	float dx = loc1.x - loc2.x;
@@ -244,7 +236,7 @@ __device__ float Continuous2D::tds(const float2d_t loc1, const float2d_t loc2) c
 	float x = dxsq+dysq;
 	return sqrt(x);
 }
-__device__ dataUnion* Continuous2D::nextNeighborInit2(float2d_t agLoc, float range, iterInfo &info) const {
+__device__ void Continuous2D::nextNeighborInit2(float2d_t agLoc, float range, iterInfo &info) const {
 	const unsigned int tid = threadIdx.x;
 	const unsigned int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -255,14 +247,22 @@ __device__ dataUnion* Continuous2D::nextNeighborInit2(float2d_t agLoc, float ran
 	info.range = range;
 	info.ptrInSmem = 0;
 
-	if ((agLoc.x-range)>BOARDER_L_D)	info.cellUL.x = (int)((agLoc.x-range)/CLEN_X);
-	else	info.cellUL.x = (int)BOARDER_L_D/CLEN_X;
-	if ((agLoc.x+range)<BOARDER_R_D)	info.cellDR.x = (int)((agLoc.x+range)/CLEN_X);
-	else	info.cellDR.x = (int)BOARDER_R_D/CLEN_X - 1;
-	if ((agLoc.y-range)>BOARDER_U_D)	info.cellUL.y = (int)((agLoc.y-range)/CLEN_Y);
-	else	info.cellUL.y = (int)BOARDER_U_D/CLEN_Y;
-	if ((agLoc.y+range)<BOARDER_D_D)	info.cellDR.y = (int)((agLoc.y+range)/CLEN_Y);
-	else	info.cellDR.y = (int)BOARDER_D_D/CLEN_Y - 1;
+	if ((agLoc.x-range)>0)	
+		info.cellUL.x = (int)((agLoc.x-range)/CLEN_X);	
+	else
+		info.cellUL.x = 0;
+	if ((agLoc.x+range)<WIDTH_D)	
+		info.cellDR.x = (int)((agLoc.x+range)/CLEN_X);
+	else	
+		info.cellDR.x = (int)WIDTH_D/CLEN_X - 1;
+	if ((agLoc.y-range)>0)	
+		info.cellUL.y = (int)((agLoc.y-range)/CLEN_Y);
+	else	
+		info.cellUL.y = 0;
+	if ((agLoc.y+range)<HEIGHT_D)	
+		info.cellDR.y = (int)((agLoc.y+range)/CLEN_Y);
+	else	
+		info.cellDR.y = (int)HEIGHT_D/CLEN_Y - 1;
 
 	int *cellulx = (int*)smem;
 	int *celluly = (int*)&(cellulx[blockDim.x]);
@@ -301,7 +301,6 @@ __device__ dataUnion* Continuous2D::nextNeighborInit2(float2d_t agLoc, float ran
 #endif
 
 	this->calcPtrAndBoarder(info);
-	return NULL;
 }
 __device__ void Continuous2D::resetNeighborInit(iterInfo &info) const{
 	info.ptr = -1;
@@ -324,11 +323,11 @@ __device__ void Continuous2D::calcPtrAndBoarder(iterInfo &info) const {
 	}
 #endif
 }
-__device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const{
+template<class dataUnion> __device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, dataUnion *elem, int tid, int lane) const{
 	int agPtr = info.ptr + lane;
 	if (agPtr <= info.boarder && agPtr >=0) {
 		GAgent *ag = this->obtainAgentByInfoPtr(agPtr);
-		elem->addValue(ag->getData());
+		ag->fillSharedMem(elem);
 	} else
 		elem->loc.x = -1;
 #ifdef DEBUG
@@ -337,7 +336,7 @@ __device__ void Continuous2D::putAgentDataIntoSharedMem(const iterInfo &info, da
 	}
 #endif
 }
-__device__ dataUnion *Continuous2D::nextAgentDataIntoSharedMem(iterInfo &info) const {
+template<class dataUnion> __device__ dataUnion *Continuous2D::nextAgentDataFromSharedMem(iterInfo &info) const {
 	dataUnion *unionArray = (dataUnion*)&smem[4*blockDim.x];
 	const int tid = threadIdx.x;
 	const int lane = tid & 31;
@@ -361,7 +360,8 @@ __device__ dataUnion *Continuous2D::nextAgentDataIntoSharedMem(iterInfo &info) c
 		dataUnion *elem = &unionArray[tid];
 		this->putAgentDataIntoSharedMem(info, elem, tid, lane);
 	}
-	dataUnion *elem = &unionArray[tid-lane+info.ptrInSmem];
+
+	dataUnion *elem = &unionArray[tid - lane + info.ptrInSmem];
 	info.ptrInSmem++;
 	info.ptr++;
 
@@ -376,7 +376,7 @@ __device__ dataUnion *Continuous2D::nextAgentDataIntoSharedMem(iterInfo &info) c
 		}
 		this->calcPtrAndBoarder(info);
 		this->putAgentDataIntoSharedMem(info, &unionArray[tid], tid, lane);
-		elem = &unionArray[tid-lane+info.ptrInSmem];
+		elem = &unionArray[tid - lane + info.ptrInSmem];
 		info.ptrInSmem++;
 		info.ptr++;
 	}
@@ -416,22 +416,6 @@ __device__ GAgentData_t *Continuous2D::nextAgentData(iterInfo &info) const {
 	return ag->getData();
 }
 
-//GAgent
-__device__ int GAgent::initId() {
-	return atomicInc(&GLOBAL_ID, UINT_MAX);
-}
-__device__ GAgentData_t *GAgent::getData(){
-	return this->data;
-}
-__device__ float2d_t GAgent::getLoc() const{
-	return this->data->loc;
-}
-__device__ void GAgent::swapDataAndCopy() {
-	GAgentData_t *temp = this->data;
-	this->data = this->dataCopy;
-	this->dataCopy = temp;
-}
-
 //GScheduler
 __device__ bool GScheduler::ScheduleOnce(const float time, 	const int rank, GAgent *ag){
 	const int idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -446,55 +430,14 @@ __device__ bool GScheduler::scheduleRepeating(const float time, const int rank, 
 
 	return true;
 }
-__device__ void GScheduler::setAssignments(const int* newAs){
-	this->assignments = newAs;
-}
-__device__ GAgent* GScheduler::obtainAgentPerThread() const {
-	const int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	if (idx < AGENT_NO_D) {
-		if (this->assignments == NULL) 
-			return this->allAgents[idx];
-		else
-			return this->allAgents[this->assignments[idx]];
-	}
-	return NULL;
-}
-__device__ GAgent* GScheduler::obtainAgentById(int idx) const {
-	if (idx <AGENT_NO_D)
-		return this->allAgents[idx];
-	else
-		return NULL;
-}
 __device__ bool GScheduler::add(GAgent *ag, int idx){
 	if(idx>=MAX_AGENT_NO_D)
 		return false;
 	this->allAgents[idx] = ag;
 	return true;
 }
-void GScheduler::allocOnHost(){
-}
-void GScheduler::allocOnDevice(){
-	this->assignments = NULL;
-	cudaMalloc((void**)&this->allAgents, MAX_AGENT_NO*sizeof(GAgent*));
-	cudaMalloc((void**)&time, sizeof(int));
-	cudaMalloc((void**)&steps, sizeof(int));
-	getLastCudaError("Scheduler::allocOnDevice:cudaMalloc");
-}
 
 //GModel
-void GModel::allocOnDevice(){
-	schedulerH = new GScheduler();
-	schedulerH->allocOnDevice();
-	cudaMalloc((void**)&scheduler, sizeof(GScheduler));
-	cudaMemcpy(scheduler, schedulerH, sizeof(GScheduler), cudaMemcpyHostToDevice);
-	getLastCudaError("GModel()");
-}
-void GModel::allocOnHost(){
-
-}
-__device__ GScheduler* GModel::getScheduler() const {
-	return this->scheduler;
-}
 __device__ void GModel::addToScheduler(GAgent *ag, int idx){
 	this->scheduler->add(ag, idx);
 }
@@ -517,7 +460,7 @@ __global__ void util::gen_hash_kernel(int *hash, Continuous2D *c2d)
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx < AGENT_NO_D) {
-		GAgent *ag = c2d->obtainAgentPerThread();
+		GAgent *ag = c2d->allAgents[idx];
 		float2d_t myLoc = ag->getLoc();
 		int xhash = (int)(myLoc.x/CLEN_X);
 		int yhash = (int)(myLoc.y/CLEN_Y);
@@ -552,6 +495,7 @@ void util::sort_hash_kernel(int *hash, int *neighborIdx)
 	getLastCudaError("sort_hash_kernel");
 }
 void util::genNeighbor(Continuous2D *world, Continuous2D *world_h)
+
 {
 	static int iterCount = 0;
 	int bSize = BLOCK_SIZE;
@@ -609,9 +553,15 @@ void util::copyHostToDevice(void *hostPtr, void **devPtr, size_t size){
 }
 
 __global__ void step(GModel *gm){
-	GScheduler *sch = gm->getScheduler();
-	GAgent *ag = sch->obtainAgentPerThread();
-	if (ag != NULL) {
+	const GScheduler *sch = gm->scheduler;
+	const Continuous2D *world = gm->world;
+	int idx = threadIdx.x + blockIdx.x * blockDim.x;
+	if (idx < AGENT_NO_D) {
+		GAgent *ag;
+		if (world != NULL)
+			ag = sch->allAgents[world->neighborIdx[idx]];
+		else
+			ag = sch->allAgents[idx];
 		ag->step(gm);
 		ag->swapDataAndCopy();
 	}
