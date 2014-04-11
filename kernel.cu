@@ -176,13 +176,15 @@ void readConfig(char *config_file){
 }
 
 void oneStep(SocialForceModel *model, SocialForceModel *model_h){
-	GAgent **worldAgentList = model_h->worldHost->allAgents;
-	GAgent **schAgentList = model_h->schedulerH->allAgents;
-	SocialForceAgent **poolAgentList = model_h->agentPoolHost->ptrArray;
 	AGENT_NO = model_h->agentPoolHost->numElem;
-	cudaMemcpy(worldAgentList, poolAgentList, AGENT_NO * sizeof(GAgent*), cudaMemcpyDeviceToDevice);
+	SocialForceAgent **poolAgentList = model_h->agentPoolHost->ptrArray;
+	GAgent **schAgentList = model_h->schedulerHost->allAgents;
 	cudaMemcpy(schAgentList, poolAgentList, AGENT_NO * sizeof(GAgent*), cudaMemcpyDeviceToDevice);
 	cudaMemcpyToSymbol(AGENT_NO_D, &AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
+	if (model_h->worldHost != NULL) {
+		GAgent **worldAgentList = model_h->worldHost->allAgents;
+		cudaMemcpy(worldAgentList, poolAgentList, AGENT_NO * sizeof(GAgent*), cudaMemcpyDeviceToDevice);
+	}
 
 	GSimVisual::getInstance().animate();
 
@@ -216,7 +218,6 @@ void mainWork(char *config_file){
 
 	SocialForceModel *model = NULL;
 	SocialForceModel *model_h = new SocialForceModel(BOARDER_D_H, BOARDER_D_H);
-	model_h->allocOnDevice();
 	util::copyHostToDevice(model_h, (void**)&model, sizeof(SocialForceModel));
 
 	int gSize = GRID_SIZE(AGENT_NO);

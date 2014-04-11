@@ -20,14 +20,10 @@ __constant__ int obsLineNum;
 
 class SocialForceModel : public GModel {
 public:
-	Continuous2D *world, *worldHost;
 	Pool<SocialForceAgent> *agentPool, *agentPoolHost;
 
 	__host__ SocialForceModel(int envHeight, int envWidth){
-		GModel::allocOnDevice();
-
 		worldHost = new Continuous2D(envHeight, envWidth, 0);
-		worldHost->allocOnDevice();
 		util::copyHostToDevice(worldHost, (void**)&world, sizeof(Continuous2D));
 
 		agentPoolHost = new Pool<SocialForceAgent>(AGENT_NO, MAX_AGENT_NO);
