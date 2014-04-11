@@ -149,12 +149,12 @@ public:
 		SocialForceAgentData_t *otherData, otherDataLocal;
 		float ds = 0;
 		
-		world->nextNeighborInit2(loc, 10, info);
+		world->nextNeighborInit2(loc, 6, info);
 		otherData = world->nextAgentDataFromSharedMem<SocialForceAgentData_t>(info);
 		while (otherData != NULL) {
 			otherDataLocal = *otherData;
 			ds = world->tds(otherDataLocal.loc, loc);
-			if (ds < 50 && ds > 0) {
+			if (ds < 6 && ds > 0) {
 				info.count++;
 				computeSocialForce(dataLocal, otherDataLocal, fSum);
 			}

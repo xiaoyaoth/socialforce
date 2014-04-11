@@ -72,45 +72,22 @@ void readConfig(char *config_file){
 		if(strcmp(p, "AGENT_NO")==0){
 			p=strtok(NULL, "=");
 			AGENT_NO = atoi(p);
-			cudaMemcpyToSymbol(AGENT_NO_D, &AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
-			cudaMemcpyToSymbol(GLOBAL_ID, &AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
-			getLastCudaError("readConfig");
 		}
 		if(strcmp(p, "MAX_AGENT_NO")==0){
 			p=strtok(NULL, "=");
 			MAX_AGENT_NO = atoi(p);
-			cudaMemcpyToSymbol(MAX_AGENT_NO_D, &MAX_AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
-			getLastCudaError("readConfig");
 		}
-		if(strcmp(p, "BOARDER_L")==0){
+		if(strcmp(p, "WIDTH")==0){
 			p=strtok(NULL, "=");
-			BOARDER_L_H = atoi(p);
-			cudaMemcpyToSymbol(BOARDER_L_D, &BOARDER_L_H, sizeof(int));
-			getLastCudaError("readConfig");
+			WIDTH_H = atoi(p);
 		}
-		if(strcmp(p, "BOARDER_R")==0){
+		if(strcmp(p, "HEIGHT")==0){
 			p=strtok(NULL, "=");
-			BOARDER_R_H = atoi(p);
-			cudaMemcpyToSymbol(BOARDER_R_D, &BOARDER_R_H, sizeof(int));
-			getLastCudaError("readConfig");
-		}
-		if(strcmp(p, "BOARDER_U")==0){
-			p=strtok(NULL, "=");
-			BOARDER_U_H = atoi(p);
-			cudaMemcpyToSymbol(BOARDER_U_D, &BOARDER_U_H, sizeof(int));
-			getLastCudaError("readConfig");
-		}
-		if(strcmp(p, "BOARDER_D")==0){
-			p=strtok(NULL, "=");
-			BOARDER_D_H = atoi(p);
-			cudaMemcpyToSymbol(BOARDER_D_D, &BOARDER_D_H, sizeof(int));
-			getLastCudaError("readConfig");
+			HEIGHT_H = atoi(p);
 		}
 		if(strcmp(p, "RANGE")==0){
 			p=strtok(NULL, "=");
 			RANGE_H = atof(p);
-			cudaMemcpyToSymbol(RANGE, &RANGE_H, sizeof(float));
-			getLastCudaError("readConfig");
 		}
 		if(strcmp(p, "DISCRETI")==0){
 			p=strtok(NULL, "=");
@@ -157,21 +134,26 @@ void readConfig(char *config_file){
 	free(cstr);
 	fin.close();
 
-	int CNO_PER_DIM_H = (int)pow((float)2, DISCRETI);
-	cudaMemcpyToSymbol(CNO_PER_DIM, &CNO_PER_DIM_H, sizeof(int));
-	getLastCudaError("readConfig");
-	
-	CELL_NO = CNO_PER_DIM_H * CNO_PER_DIM_H;
-	cudaMemcpyToSymbol(CELL_NO_D, &CELL_NO, sizeof(int));
-	getLastCudaError("readConfig");
-	
-	float CLEN_X_H = (float)(BOARDER_R_H-BOARDER_L_H)/CNO_PER_DIM_H;
-	float CLEN_Y_H = (float)(BOARDER_D_H-BOARDER_U_H)/CNO_PER_DIM_H;
-	cudaMemcpyToSymbol(CLEN_X, &CLEN_X_H, sizeof(int));
-	getLastCudaError("readConfig");
-	cudaMemcpyToSymbol(CLEN_Y, &CLEN_Y_H, sizeof(int));
-	getLastCudaError("readConfig");
+	if (AGENT_NO > MAX_AGENT_NO)
+		MAX_AGENT_NO = AGENT_NO;
 
+	int CNO_PER_DIM_H = (int)pow((float)2, DISCRETI);
+	CELL_NO = CNO_PER_DIM_H * CNO_PER_DIM_H;
+	
+	float CLEN_X_H = (float)(WIDTH_H)/CNO_PER_DIM_H;
+	float CLEN_Y_H = (float)(HEIGHT_H)/CNO_PER_DIM_H;
+
+	cudaMemcpyToSymbol(AGENT_NO_D, &AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(GLOBAL_ID, &AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(MAX_AGENT_NO_D, &MAX_AGENT_NO, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(WIDTH_D, &WIDTH_H, sizeof(int));
+	cudaMemcpyToSymbol(HEIGHT_D, &HEIGHT_H, sizeof(int));
+	cudaMemcpyToSymbol(RANGE, &RANGE_H, sizeof(float));
+	cudaMemcpyToSymbol(CNO_PER_DIM, &CNO_PER_DIM_H, sizeof(int));
+	cudaMemcpyToSymbol(CELL_NO_D, &CELL_NO, sizeof(int));
+	cudaMemcpyToSymbol(CLEN_X, &CLEN_X_H, sizeof(int));
+	cudaMemcpyToSymbol(CLEN_Y, &CLEN_Y_H, sizeof(int));
+	
 	//GRID_SIZE = AGENT_NO%BLOCK_SIZE==0 ? AGENT_NO/BLOCK_SIZE : AGENT_NO/BLOCK_SIZE + 1;
 }
 
@@ -217,7 +199,7 @@ void mainWork(char *config_file){
 	printf("cudaLimitMallocHeapSize: %d\n", pVal);
 
 	SocialForceModel *model = NULL;
-	SocialForceModel *model_h = new SocialForceModel(BOARDER_D_H, BOARDER_D_H);
+	SocialForceModel *model_h = new SocialForceModel(HEIGHT_H, HEIGHT_H);
 	util::copyHostToDevice(model_h, (void**)&model, sizeof(SocialForceModel));
 
 	int gSize = GRID_SIZE(AGENT_NO);
@@ -227,7 +209,7 @@ void mainWork(char *config_file){
 #ifdef _WIN32
 	GSimVisual::getInstance().setWorld(model_h->world);
 	for (int i=0; i<STEPS; i++){
-		//if ((i%(STEPS/10))==0) 
+		if ((i%(STEPS/100))==0) 
 		printf("STEP:%d ", i);
 		oneStep(model, model_h);
 	}

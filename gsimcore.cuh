@@ -216,17 +216,17 @@ __device__ float Continuous2D::sty(const float y) const {
 }
 __device__ float Continuous2D::tdx(float ax, float bx) const {
 	float dx = abs(ax-bx);
-	if (dx < BOARDER_R_D/2)
+	if (dx < WIDTH_D/2)
 		return dx;
 	else
-		return BOARDER_R_D-dx;
+		return WIDTH_D-dx;
 }
 __device__ float Continuous2D::tdy(float ay, float by) const {
 	float dy = abs(ay-by);
-	if (dy < BOARDER_D_D/2)
+	if (dy < HEIGHT_D/2)
 		return dy;
 	else
-		return BOARDER_D_D-dy;
+		return HEIGHT_D-dy;
 }
 __device__ float Continuous2D::tds(const float2d_t loc1, const float2d_t loc2) const {
 	float dx = loc1.x - loc2.x;
@@ -247,14 +247,22 @@ __device__ void Continuous2D::nextNeighborInit2(float2d_t agLoc, float range, it
 	info.range = range;
 	info.ptrInSmem = 0;
 
-	if ((agLoc.x-range)>BOARDER_L_D)	info.cellUL.x = (int)((agLoc.x-range)/CLEN_X);
-	else	info.cellUL.x = (int)BOARDER_L_D/CLEN_X;
-	if ((agLoc.x+range)<BOARDER_R_D)	info.cellDR.x = (int)((agLoc.x+range)/CLEN_X);
-	else	info.cellDR.x = (int)BOARDER_R_D/CLEN_X - 1;
-	if ((agLoc.y-range)>BOARDER_U_D)	info.cellUL.y = (int)((agLoc.y-range)/CLEN_Y);
-	else	info.cellUL.y = (int)BOARDER_U_D/CLEN_Y;
-	if ((agLoc.y+range)<BOARDER_D_D)	info.cellDR.y = (int)((agLoc.y+range)/CLEN_Y);
-	else	info.cellDR.y = (int)BOARDER_D_D/CLEN_Y - 1;
+	if ((agLoc.x-range)>0)	
+		info.cellUL.x = (int)((agLoc.x-range)/CLEN_X);	
+	else
+		info.cellUL.x = 0;
+	if ((agLoc.x+range)<WIDTH_D)	
+		info.cellDR.x = (int)((agLoc.x+range)/CLEN_X);
+	else	
+		info.cellDR.x = (int)WIDTH_D/CLEN_X - 1;
+	if ((agLoc.y-range)>0)	
+		info.cellUL.y = (int)((agLoc.y-range)/CLEN_Y);
+	else	
+		info.cellUL.y = 0;
+	if ((agLoc.y+range)<HEIGHT_D)	
+		info.cellDR.y = (int)((agLoc.y+range)/CLEN_Y);
+	else	
+		info.cellDR.y = (int)HEIGHT_D/CLEN_Y - 1;
 
 	int *cellulx = (int*)smem;
 	int *celluly = (int*)&(cellulx[blockDim.x]);

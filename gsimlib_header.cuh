@@ -19,10 +19,8 @@ __device__ unsigned int GLOBAL_ID;
 __constant__ int MAX_AGENT_NO_D;//copied from host
 __device__ unsigned int AGENT_NO_D;		//copied from host
 __constant__ int CELL_NO_D;		//copied from host
-__constant__ int BOARDER_L_D;	//copied from host
-__constant__ int BOARDER_R_D;	//copied from host
-__constant__ int BOARDER_U_D;	//copied from host
-__constant__ int BOARDER_D_D;	//copied from host
+__constant__ int WIDTH_D;	//copied from host
+__constant__ int HEIGHT_D;	//copied from host
 __constant__ int CNO_PER_DIM;	//(int)pow((float)2, DISCRETI)
 __constant__ float CLEN_X;		//(float)(BOARDER_R-BOARDER_L)/CNO_PER_DIM;
 __constant__ float CLEN_Y;		//(float)(BOARDER_D-BOARDER_U)/CNO_PER_DIM;
@@ -34,10 +32,8 @@ float RANGE_H;		//read from config
 size_t HEAP_SIZE;	//read from config
 size_t STACK_SIZE;	//read from config
 
-int BOARDER_L_H;	//read from config
-int BOARDER_R_H;	//read from config
-int BOARDER_U_H;	//read from config
-int BOARDER_D_H;	//read from config
+int WIDTH_H;	//read from config
+int HEIGHT_H;	//read from config
 int AGENT_NO;		//read from config
 int MAX_AGENT_NO;	//read from config
 int STEPS;			//read from config
