@@ -191,7 +191,7 @@ void oneStep(SocialForceModel *model, SocialForceModel *model_h){
 	int gSize = GRID_SIZE(AGENT_NO);
 	size_t sizeOfSmem = BLOCK_SIZE * (
 		4*sizeof(int)
-		+ sizeof(dataUnion)
+		+ sizeof(SocialForceAgentData_t)
 		);
 
 	getLastCudaError("before loop");

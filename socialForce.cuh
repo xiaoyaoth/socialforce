@@ -78,7 +78,7 @@ public:
 		this->dataCopy = dataCopy;
 	}
 
-	__device__ void computeSocialForce(const SocialForceAgentData_t &myData, const dataUnion &otherData, float2d_t &fSum){
+	__device__ void computeSocialForce(const SocialForceAgentData_t &myData, const SocialForceAgentData_t &otherData, float2d_t &fSum){
 		float cMass = 100;
 		//my data
 		const float2d_t& loc = myData.loc;
@@ -146,11 +146,11 @@ public:
 		
 		//compute force with other agents
 		float2d_t fSum; fSum.x = 0; fSum.y = 0;
-		dataUnion *otherData, otherDataLocal;
+		SocialForceAgentData_t *otherData, otherDataLocal;
 		float ds = 0;
 		
 		world->nextNeighborInit2(loc, 10, info);
-		otherData = world->nextAgentDataFromSharedMem<dataUnion>(info);
+		otherData = world->nextAgentDataFromSharedMem<SocialForceAgentData_t>(info);
 		while (otherData != NULL) {
 			otherDataLocal = *otherData;
 			ds = world->tds(otherDataLocal.loc, loc);
@@ -158,7 +158,7 @@ public:
 				info.count++;
 				computeSocialForce(dataLocal, otherDataLocal, fSum);
 			}
-			otherData = world->nextAgentDataFromSharedMem<dataUnion>(info);
+			otherData = world->nextAgentDataFromSharedMem<SocialForceAgentData_t>(info);
 		}
 		
 		//compute force with wall
