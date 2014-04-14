@@ -158,6 +158,8 @@ void readConfig(char *config_file){
 }
 
 void oneStep(SocialForceModel *model, SocialForceModel *model_h){
+	int start = GetTickCount();
+
 	AGENT_NO = model_h->agentPoolHost->numElem;
 	SocialForceAgent **poolAgentList = model_h->agentPoolHost->ptrArray;
 	GAgent **schAgentList = model_h->schedulerHost->allAgents;
@@ -167,6 +169,10 @@ void oneStep(SocialForceModel *model, SocialForceModel *model_h){
 		GAgent **worldAgentList = model_h->worldHost->allAgents;
 		cudaMemcpy(worldAgentList, poolAgentList, AGENT_NO * sizeof(GAgent*), cudaMemcpyDeviceToDevice);
 	}
+
+	int end = GetTickCount();
+	int diff = end-start;
+	std::cout<<"Took "<<diff<<" ms\t";
 
 	GSimVisual::getInstance().animate();
 
